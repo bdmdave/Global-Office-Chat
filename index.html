@@ -767,12 +767,6 @@
       }
     }
 
-    // ---------- Helper: get collection/doc helpers for delete/pin ----------
-    function doc(collRef, id){
-      // wrapper to build doc ref (replicate minimal behavior)
-      return window.firestoreDocProxy ? window.firestoreDocProxy(collRef, id) : (function(){ throw new Error('Doc helper not available'); })();
-    }
-
     // To use setDoc/deleteDoc/addDoc we use direct firestore functions above (we already have doc/collection from firebase imports)
     // But we need doc() from firebase - already imported as function in scope. So the earlier doc wrapper is unnecessary; ignore.
 
