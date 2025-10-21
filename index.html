@@ -233,8 +233,10 @@
         
         const ADMIN_SECRET_CODE = 'itsdaveproject';
         
+        // Configuration loading logic
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-anonchat-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const firebaseConfigRaw = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        const firebaseConfig = JSON.parse(firebaseConfigRaw);
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let app, db, auth, userId = null;
@@ -325,9 +327,13 @@
 
         async function initializeFirebase() {
             try {
+                // Check if firebaseConfig is empty after parsing
                 if (Object.keys(firebaseConfig).length === 0) {
                      console.error("Firebase config is empty. Cannot initialize.");
-                     elements.loadingScreen.innerHTML = '<p class="text-red-600">Configuration Error: Firebase config not found.</p>';
+                     elements.loadingScreen.innerHTML = `
+                         <p class="text-red-600 font-bold mb-2">Configuration Error: Firebase config not found.</p>
+                         <p class="text-gray-600 text-sm">Please refresh the page to ensure the environment variables load correctly.</p>
+                     `;
                      return;
                 }
                 
