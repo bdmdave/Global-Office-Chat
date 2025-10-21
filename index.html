@@ -17,6 +17,9 @@
     .sidebar-item { cursor:pointer; transition: background-color .2s; }
     .sidebar-item:hover { background-color: rgba(238,242,255,.7); }
     .sidebar-item.active { background-color:#e0e7ff; font-weight:600; border-right:4px solid #4f46e5; }
+    /* Toast */
+    .toast { position: fixed; top: 1rem; right: 1rem; z-index: 9999; display:flex; flex-direction:column; gap:0.5rem; }
+    .toast .item { background:#111827; color:white; padding:0.6rem 1rem; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.2); font-size:13px; opacity:0.98; }
   </style>
 </head>
 <body>
@@ -30,15 +33,11 @@
     <div id="auth-screen" class="w-full max-w-md p-8 rounded-xl shadow-2xl blur-card">
       <h1 class="text-3xl font-bold text-center text-indigo-700 mb-6">AnonChat Office - Sign In</h1>
       <p class="text-center text-gray-600 mb-8">Enter credentials to access secure office communications.</p>
-
       <div id="auth-error" class="text-red-500 text-sm mb-4 hidden bg-red-100 p-2 rounded-lg"></div>
 
-      <input type="text" id="real-username" placeholder="Your Real Username (e.g. John Doe)"
-             class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80">
-      <input type="email" id="email" placeholder="Email (Admin or User)"
-             class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80">
-      <input type="password" id="password" placeholder="Password"
-             class="w-full p-3 mb-6 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80">
+      <input type="text" id="real-username" placeholder="Your Real Username (e.g. John Doe)" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80">
+      <input type="email" id="email" placeholder="Email (Admin or User)" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80">
+      <input type="password" id="password" placeholder="Password" class="w-full p-3 mb-6 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80">
 
       <button onclick="handleAuth('login')" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition duration-300 shadow-xl mb-3 glow-button">Sign In</button>
       <button onclick="handleAuth('signup')" class="w-full bg-gray-200 text-gray-700 p-3 rounded-lg font-semibold hover:bg-gray-300 transition duration-300 shadow-md hover:shadow-lg">Register New Account</button>
@@ -92,8 +91,7 @@
           </div>
 
           <div id="input-area" class="p-4 border-t border-gray-200 flex space-x-3 bg-white/80">
-            <input type="text" id="message-input" placeholder="Type your anonymous message here..."
-                   class="flex-grow p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" onkeydown="if(event.key === 'Enter') sendMessage()">
+            <input type="text" id="message-input" placeholder="Type your anonymous message here..." class="flex-grow p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" onkeydown="if(event.key === 'Enter') sendMessage()">
             <button onclick="sendMessage()" class="bg-indigo-600 text-white p-3 rounded-xl font-semibold hover:bg-indigo-700 transition duration-300 flex items-center justify-center shadow-lg glow-button">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
             </button>
@@ -124,46 +122,45 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read public resources
-    match /artifacts/{appId}/public_data/{collection=**} {
+    // Flattened public profiles (collection)
+    match /artifacts/{appId}/public_data_profiles/{uid} {
       allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.email in [
+        "ofloverules641@gmail.com",
+        "5m0k3r.706118@gmail.com",
+        "d.alonsoesthub02@gmail.com"
+      ];
     }
-    // User profiles - owners can write their profile
+
+    // Flattened banned users (collection)
+    match /artifacts/{appId}/public_data_bannedUsers/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.email in [
+        "ofloverules641@gmail.com",
+        "5m0k3r.706118@gmail.com",
+        "d.alonsoesthub02@gmail.com"
+      ];
+    }
+
+    // Channels messages
+    match /artifacts/{appId}/public_data_channels/{channelId}/messages/{msg} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Direct messages
+    match /artifacts/{appId}/public_data_directMessages/{dmId}/messages/{msg} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Per-user profiles (private)
     match /artifacts/{appId}/users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
-    // Public profiles used for listing (admins can manage)
-    match /artifacts/{appId}/public_data/profiles/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.email in [
-        "ofloverules641@gmail.com",
-        "5m0k3r.706118@gmail.com",
-        "d.alonsoesthub02@gmail.com"
-      ];
-    }
-    // Banned users: only admins can write; authenticated users can read their own ban status
-    match /artifacts/{appId}/public_data/bannedUsers/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.email in [
-        "ofloverules641@gmail.com",
-        "5m0k3r.706118@gmail.com",
-        "d.alonsoesthub02@gmail.com"
-      ];
-    }
-    // Channel and DM messages: authenticated users can read/write messages
-    match /artifacts/{appId}/public_data/channels/{channelId}/messages/{msg} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    match /artifacts/{appId}/public_data/directMessages/{dmId}/messages/{msg} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
   }
 }
-            </pre>
-            <p class="text-xs mt-2 text-gray-500">Important: Replace the admin email list in the rules above with your admin emails in the Firestore Console before publishing rules (the list here already matches your chosen admins).</p>
+            --></pre>
+            <p class="text-xs mt-2 text-gray-500">Important: these rules match the flattened collection structure used by this app. Publish them in your Firebase Console → Firestore → Rules.</p>
           </div>
         </div>
 
@@ -178,15 +175,18 @@ service cloud.firestore {
     </div>
   </div>
 
+  <!-- Toast container -->
+  <div id="toast-container" class="toast" aria-live="polite" aria-atomic="true"></div>
+
   <!-- Firebase SDKs and App Logic (CDN, ES Modules) -->
   <script type="module">
-    // ---------------------------
-    // Firebase config - REAL
-    // ---------------------------
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, serverTimestamp, getDocs, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+    // ---------------------------
+    // Firebase config (your project)
+    // ---------------------------
     const firebaseConfig = {
       apiKey: "AIzaSyA8kIiVqf_ZHOjIWW59JT7DWKMg9-KWVn8",
       authDomain: "anonchat-office.firebaseapp.com",
@@ -197,7 +197,7 @@ service cloud.firestore {
       measurementId: "G-X078LYJJ60"
     };
 
-    // Admin emails (final set)
+    // Admin emails
     const ADMIN_EMAILS = [
       "ofloverules641@gmail.com",
       "5m0k3r.706118@gmail.com",
@@ -207,6 +207,7 @@ service cloud.firestore {
     // ---------------------------
     // App state
     // ---------------------------
+    const APP_ID = 'anonchat-office';
     let app, db, auth, userId = null;
     let userProfile = {};
     let codenameCache = {};
@@ -217,9 +218,7 @@ service cloud.firestore {
     let currentChatId = 'Office Chat';
     let unsubscribeListener = null;
 
-    // ---------------------------
-    // Elements
-    // ---------------------------
+    // UI elements
     const elements = {
       loadingScreen: document.getElementById('loading-screen'),
       appContainer: document.getElementById('app-container'),
@@ -246,9 +245,7 @@ service cloud.firestore {
       banNotification: document.getElementById('ban-notification')
     };
 
-    // ---------------------------
     // Static data
-    // ---------------------------
     const CHANNELS = ['Office Chat', 'Tea Spot', 'Project Beta', 'Random Memes'];
     const COMMUNITY_RULES = [
       "1. **Professional Conduct:** Always maintain a professional and respectful tone, even in the 'Tea Spot'.",
@@ -261,32 +258,40 @@ service cloud.firestore {
 
     const RANDOM_CODENAMES = ["SilentPanda","DancingKoala","BraveTiger","MysticWolf","GoldenEagle","SwiftFox","CuriousCat","WhimsicalWombat","FlyingFish","JollyJellyfish","MidnightRaven","ElectricEel","WanderingWeasel","CleverCoyote","ZestyZebra"];
 
-    // ---------------------------
+    // Toast helper
+    function showToast(text, ms = 3000) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.innerText = text;
+      container.appendChild(item);
+      setTimeout(() => {
+        item.style.transition = 'opacity .25s';
+        item.style.opacity = '0';
+        setTimeout(() => container.removeChild(item), 300);
+      }, ms);
+    }
+
     // Helpers
-    // ---------------------------
     function hide(el){ if(!el) return; el.style.display='none'; }
     function show(el, display='flex'){ if(!el) return; el.style.display=display; }
-    function setError(message){ elements.authError.innerText = message; show(elements.authError,'block'); }
+    function setError(message){ elements.authError.innerText = message; show(elements.authError,'block'); showToast(message,4000); }
     function clearError(){ elements.authError.innerText=''; hide(elements.authError); }
     function stringToColor(str){ let hash=0; for(let i=0;i<str.length;i++){ hash = str.charCodeAt(i) + ((hash<<5)-hash); } let color='#'; for(let i=0;i<3;i++){ const value = (hash>>(i*8)) & 0xFF; color += ('00' + value.toString(16)).substr(-2); } return color; }
     function getDmId(uid1, uid2){ return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`; }
     function checkIfBanned(){ return userId && bannedUsersCache.hasOwnProperty(userId); }
 
-    // ---------------------------
-    // Firestore path helpers (use explicit projectId/appId root)
-    // ---------------------------
-    const APP_ID = 'anonchat-office';
+    // Firestore helpers using flattened collections (valid doc paths)
     const getProfileDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'users', uid);
-    const getPublicProfileDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'public_data', 'profiles', uid);
-    const getBannedUserDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'public_data', 'bannedUsers', uid);
-    const getChannelsCollectionRef = (channelId) => collection(db, 'artifacts', APP_ID, 'public_data', 'channels', channelId, 'messages');
-    const getDmCollectionRef = (dmId) => collection(db, 'artifacts', APP_ID, 'public_data', 'directMessages', dmId, 'messages');
-    const getAllPublicProfilesCollectionRef = () => collection(db, 'artifacts', APP_ID, 'public_data', 'profiles');
-    const getBannedCollectionRef = () => collection(db, 'artifacts', APP_ID, 'public_data', 'bannedUsers');
+    const getPublicProfileDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'public_data_profiles', uid);
+    const getBannedUserDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'public_data_bannedUsers', uid);
+    const getChannelsCollectionRef = (channelId) => collection(db, 'artifacts', APP_ID, 'public_data_channels', channelId, 'messages');
+    const getDmCollectionRef = (dmId) => collection(db, 'artifacts', APP_ID, 'public_data_directMessages', dmId, 'messages');
+    const getAllPublicProfilesCollectionRef = () => collection(db, 'artifacts', APP_ID, 'public_data_profiles');
+    const getBannedCollectionRef = () => collection(db, 'artifacts', APP_ID, 'public_data_bannedUsers');
 
-    // ---------------------------
     // Initialize Firebase
-    // ---------------------------
     async function initializeFirebase(){
       try {
         if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey.includes("YOUR_API_KEY")) {
@@ -300,13 +305,12 @@ service cloud.firestore {
         db = getFirestore(app);
         auth = getAuth(app);
 
-        // Default to anonymous sign-in to allow quick demo if user doesn't sign in
-        try { await signInAnonymously(auth); } catch(e) { console.warn("Anonymous sign-in failed:", e); }
+        // Try anonymous sign-in so users can demo quickly (optional)
+        try { await signInAnonymously(auth); } catch(e){ console.warn("Anonymous sign-in failed:", e); }
 
         onAuthStateChanged(auth, handleAuthStateChange);
         setupBanListener();
-
-        console.log("✅ Firebase initialized for project:", firebaseConfig.projectId || APP_ID);
+        console.log("Firebase initialized for project:", firebaseConfig.projectId || APP_ID);
       } catch(error) {
         console.error("Firebase initialization error:", error);
         setError(`Initialization failed: ${error.message}`);
@@ -316,9 +320,7 @@ service cloud.firestore {
       }
     }
 
-    // ---------------------------
     // Profile management
-    // ---------------------------
     async function getOrCreateProfile(uid, providedEmail = '', providedUsername = '') {
       const profileRef = getProfileDocRef(uid);
       const profileSnap = await getDoc(profileRef);
@@ -346,7 +348,6 @@ service cloud.firestore {
         realUsername: profileData.realUsername,
         lastActive: serverTimestamp()
       }, { merge: true });
-
       userProfile = profileData;
       elements.userCodenameDisplay.innerText = userProfile.codeword;
       return profileData;
@@ -372,9 +373,7 @@ service cloud.firestore {
       }
     }
 
-    // ---------------------------
     // Ban listener & logic
-    // ---------------------------
     function setupBanListener(){
       try {
         const bannedRef = getBannedCollectionRef();
@@ -394,7 +393,7 @@ service cloud.firestore {
     function handleBanStatusUpdate(){
       if (!userId) return;
       const isBanned = checkIfBanned();
-      if (isBanned) { show(elements.banNotification,'block'); hide(elements.inputArea); }
+      if (isBanned) { show(elements.banNotification,'block'); hide(elements.inputArea); showToast("You are banned."); }
       else { hide(elements.banNotification); if (currentView === 'chat') show(elements.inputArea,'flex'); }
     }
 
@@ -403,6 +402,7 @@ service cloud.firestore {
       try {
         if (currentStatus === 'BANNED') {
           await deleteDoc(getBannedUserDocRef(targetUid));
+          showToast("User unbanned.");
           console.log(`User ${targetUid} unbanned.`);
         } else {
           await setDoc(getBannedUserDocRef(targetUid), {
@@ -411,21 +411,16 @@ service cloud.firestore {
             timestamp: serverTimestamp(),
             reason: "Violated Community Guidelines (Permanent Ban until unbanned)"
           });
+          showToast("User banned.");
           console.log(`User ${targetUid} banned.`);
         }
       } catch(error) {
         console.error("toggleBanUser error:", error);
-        const message = document.createElement('div');
-        message.className = 'fixed top-5 right-5 p-3 bg-red-500 text-white rounded-lg shadow-xl';
-        message.innerText = `Failed to change ban status: ${error.message}`;
-        document.body.appendChild(message);
-        setTimeout(() => document.body.removeChild(message), 3000);
+        showToast("Failed to change ban status.");
       }
     };
 
-    // ---------------------------
     // Rendering helpers
-    // ---------------------------
     function renderChannelsList(){
       elements.channelsList.innerHTML = '';
       CHANNELS.forEach(channel => {
@@ -502,9 +497,7 @@ service cloud.firestore {
       });
     }
 
-    // ---------------------------
     // View switching
-    // ---------------------------
     window.switchView = (view, title) => {
       currentView = view;
       hide(elements.chatScreen); hide(elements.adminPortalScreen); hide(elements.rulesScreen);
@@ -535,12 +528,10 @@ service cloud.firestore {
       currentChatType = type; currentChatId = id; switchView('chat', title);
     };
 
-    // ---------------------------
     // Chat logic
-    // ---------------------------
     async function sendMessage(){
       const messageText = elements.messageInput.value.trim();
-      if (checkIfBanned()) { console.warn("Attempt blocked: User is banned."); return; }
+      if (checkIfBanned()) { console.warn("Attempt blocked: User is banned."); showToast("You are banned."); return; }
       if (!messageText || !userProfile.codeword || !userId) return;
 
       let collectionRef;
@@ -562,7 +553,8 @@ service cloud.firestore {
           ...(currentChatType === 'dm' && { recipientId: currentChatId, senderId: userId })
         });
         elements.messageInput.value = '';
-      } catch(e) { console.error("Error sending message:", e); }
+        showToast("Message sent.");
+      } catch(e) { console.error("Error sending message:", e); showToast("Failed to send message."); }
     }
 
     function setupChatListener(){
@@ -607,9 +599,7 @@ service cloud.firestore {
       return messageContainer;
     }
 
-    // ---------------------------
     // Auth handlers
-    // ---------------------------
     async function handleAuthStateChange(user){
       hide(elements.loadingScreen); show(elements.appContainer);
       if (user) {
@@ -642,9 +632,11 @@ service cloud.firestore {
         if (type === 'signup') {
           userCredential = await createUserWithEmailAndPassword(auth, email, password);
           await getOrCreateProfile(userCredential.user.uid, email, realUsername);
+          showToast("Account created.");
         } else {
           userCredential = await signInWithEmailAndPassword(auth, email, password);
           await getOrCreateProfile(userCredential.user.uid, email, realUsername);
+          showToast("Signed in.");
         }
       } catch (error) {
         let errorMessage = error.message;
@@ -658,13 +650,11 @@ service cloud.firestore {
 
     window.logout = async () => {
       if (unsubscribeListener) { unsubscribeListener(); unsubscribeListener = null; }
-      try { await signOut(auth); } catch (e) { console.error("Sign out error:", e); }
+      try { await signOut(auth); showToast("Signed out."); } catch (e) { console.error("Sign out error:", e); }
     };
     window.sendMessage = sendMessage;
 
-    // ---------------------------
     // Start app
-    // ---------------------------
     initializeFirebase();
   </script>
 </body>
