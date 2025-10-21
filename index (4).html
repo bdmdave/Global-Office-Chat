@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>AnonChat Office</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Bright Minimal (Notion-style) theme - light only */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+    :root{
+      --bg:#f7f8fb;
+      --panel:#ffffff;
+      --muted:#6b7280;
+      --accent:#3b82f6; /* blue accent */
+      --soft-border: #e6eef8;
+      --glass: rgba(255,255,255,0.6);
+      --shadow-sm: 0 8px 20px rgba(16,24,40,0.06);
+      --radius: 12px;
+      --bubble-me: linear-gradient(90deg,var(--accent), #60a5fa);
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      background: var(--bg);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#0f1724;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .app-shell{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+    .card { width:100%; max-width:1200px; height:86vh; display:flex; border-radius:14px; overflow:hidden; box-shadow: var(--shadow-sm); background:var(--panel); border:1px solid var(--soft-border); }
+
+    /* Sidebar */
+    .sidebar{ width:320px; background:#f1f3f5; border-right:1px solid #eef2f6; padding:18px; display:flex; flex-direction:column; gap:8px; }
+    .brand h1{ font-size:18px; margin:0; color: #0f1724; font-weight:700; }
+    .codename{ color:var(--muted); font-weight:600; font-size:13px; margin-top:4px; }
+
+    .section-title{ font-size:12px; color:var(--muted); margin-top:8px; margin-bottom:6px; }
+
+    .list-item{ padding:10px 12px; border-radius:10px; display:flex; align-items:center; gap:10px; color:var(--muted); cursor:pointer; transition:all .12s; user-select:none; background:transparent; }
+    .list-item:hover{ transform:translateY(-2px); box-shadow: 0 8px 24px rgba(16,24,40,0.04); color:#0b1220; background: rgba(59,130,246,0.03); }
+    .list-item.active{ background: rgba(59,130,246,0.06); color:#0b1220; border-right:4px solid var(--accent); font-weight:600; }
+
+    /* Main area */
+    .main{ flex:1; display:flex; flex-direction:column; background: transparent; }
+    .header{ padding:18px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eef2f6; background:transparent; }
+    .header h2{ margin:0; color:#0b1220; font-weight:700; }
+    .header .muted{ color:var(--muted); font-size:13px; }
+
+    .content { display:flex; flex:1; overflow:hidden; background:transparent; }
+    .messages-pane { flex:1; display:flex; flex-direction:column; min-width:0; background: #ffffff; border-radius:12px; margin:14px; box-shadow: var(--shadow-sm); border:1px solid #f1f5f9; }
+    .messages { flex:1; padding:18px; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+
+    .pinned-strip { padding:8px 12px; display:flex; gap:8px; align-items:center; border-bottom:1px solid #f1f5f9; background:transparent; }
+    .pinned-item { padding:6px 10px; border-radius:8px; background:#f8fafc; color:#0b1220; font-size:13px; }
+
+    .msg-row { display:flex; gap:12px; align-items:flex-end; }
+    .msg-left { justify-content:flex-start; }
+    .msg-right { justify-content:flex-end; margin-left:auto; }
+
+    .bubble { max-width:70%; padding:12px 14px; border-radius:14px; box-shadow: 0 6px 18px rgba(16,24,40,0.04); color:#0b1220; word-wrap:break-word; position:relative; background:#f8fafc; border:1px solid #eef2f6; }
+    .bubble.me { background: var(--bubble-me); color:white; border:none; border-radius:14px 14px 6px 14px; }
+    .bubble.they { background:#ffffff; color:#0b1220; border:1px solid #eef2f6; border-radius:14px 14px 14px 6px; }
+
+    .meta { font-size:11px; color:var(--muted); margin-top:6px; }
+
+    /* composer */
+    .composer { display:flex; gap:8px; padding:12px; border-top:1px solid #eef2f6; align-items:center; background:transparent; margin:14px; }
+    .composer .input { flex:1; display:flex; gap:8px; align-items:center; padding:10px; border-radius:10px; border:1px solid #eef2f6; background:#fff; }
+    .composer input { background:transparent; border:none; outline:none; color:#0b1220; padding:8px; width:100%; font-size:14px; }
+    .btn { padding:10px 12px; border-radius:10px; border:none; color:white; cursor:pointer; background:var(--accent); box-shadow: 0 8px 24px rgba(59,130,246,0.12); transition:transform .12s, box-shadow .12s; font-weight:700; }
+    .btn:hover{ transform:translateY(-3px); box-shadow: 0 12px 36px rgba(59,130,246,0.16); }
+
+    .neon-outline { position:relative; }
+    .neon-outline::after { content:""; position:absolute; inset:-2px; border-radius:12px; background:transparent; opacity:0; transition:opacity .12s; z-index:-1; }
+
+    /* admin panel */
+    .right-panel { width:420px; border-left:1px solid #eef2f6; padding:16px; overflow:auto; display:flex; flex-direction:column; gap:10px; background:#fafbfd; }
+    .admin-row { display:flex; gap:8px; align-items:center; padding:8px; border-radius:8px; border-bottom:1px solid #f1f5f9; }
+    .admin-col { flex:1; font-size:13px; color:#0b1220; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* emoji modal */
+    .emoji-modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--panel); border-radius:10px; padding:12px; z-index:2000; width:520px; box-shadow:0 26px 80px rgba(16,24,40,0.08); border:1px solid #eef2f6; }
+    .emoji-grid { display:grid; grid-template-columns:repeat(9,1fr); gap:6px; max-height:360px; overflow:auto; padding:6px; }
+    .emoji-cell { padding:8px; font-size:20px; text-align:center; cursor:pointer; border-radius:8px; transition:transform .08s; }
+    .emoji-cell:hover { transform:scale(1.08); background:#f1f5f9; }
+
+    /* search */
+    .search { padding:8px; border-radius:10px; border:1px solid #eef2f6; background:#fff; color:#0b1220; }
+
+    /* toasts */
+    .toasts { position:fixed; top:18px; right:18px; display:flex; flex-direction:column; gap:8px; z-index:4000; }
+    .toast { background:#fff; color:#0b1220; padding:10px 12px; border-radius:8px; border:1px solid #eef2f6; box-shadow:0 12px 36px rgba(16,24,40,0.06); }
+
+    /* small utilities */
+    .hidden { display:none !important; }
+    .muted { color:var(--muted); }
+    .icon-btn { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:6px; border-radius:999px; }
+    .icon-btn:hover { color:#0b1220; background:#f1f5f9; transform:translateY(-2px); }
+    @keyframes spin { from { transform:rotate(0) } to { transform:rotate(360deg) } }
+
+    /* responsive */
+    @media (max-width: 1100px){
+      .card { flex-direction:column; height:92vh; }
+      .right-panel { display:none; }
+      .sidebar { order:2; width:100%; }
+      .messages-pane { margin:10px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(11,17,32,0.06);z-index:8000;">
+    <div style="text-align:center;color:#0b1220;">
+      <div style="width:56px;height:56px;border-radius:999px;border-top:4px solid var(--accent);border-right:4px solid transparent; animation:spin 1s linear infinite;margin:0 auto;"></div>
+      <div style="margin-top:12px;">Starting AnonChat Office...</div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toasts" class="toasts"></div>
+
+  <div id="appShell" class="app-shell" style="display:none;">
+    <div class="card">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="brand"><h1>AnonChat Office</h1></div>
+            <div id="codenameDisplay" class="codename">—</div>
+            <div id="uidDisplay" class="muted" style="font-size:12px;">—</div>
+          </div>
+          <div>
+            <button id="logoutBtn" class="btn neon-outline" title="Logout" style="background:var(--accent);">Logout</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">CHANNELS</div>
+          <div id="channelsList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <div class="section-title">DIRECT MESSAGES</div>
+          <div id="dmsList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <div style="margin-top:auto;">
+          <button id="rulesBtn" class="list-item neon-outline">📜 Community Rules</button>
+          <div id="adminLinkWrap" style="display:none; margin-top:8px;">
+            <button id="openAdminBtn" class="list-item neon-outline">🛠️ Admin Portal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main -->
+      <div class="main">
+        <div class="header">
+          <div>
+            <h2 id="chatTitle">Select a Channel or DM</h2>
+            <div id="chatSubtitle" class="muted">Choose a conversation to begin</div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="searchInput" class="search" placeholder="Search messages..." style="width:260px;"/>
+            <div id="adminBadge" class="muted" style="padding:6px 10px;border-radius:8px;border:1px solid #eef2f6;">User</div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div class="messages-pane" style="flex:1;display:flex;flex-direction:column;">
+            <div id="pinnedStrip" class="pinned-strip hidden"></div>
+            <div id="messages" class="messages"></div>
+
+            <div class="composer">
+              <div class="input">
+                <input id="messageInput" placeholder="Type a message..." autocomplete="off" />
+              </div>
+              <button id="emojiBtn" class="btn neon-outline" title="Emoji" style="background:#fff;color:var(--muted);border:1px solid #eef2f6;">😊</button>
+              <button id="sendBtn" class="btn neon-outline" title="Send" style="background:var(--accent);">Send</button>
+            </div>
+          </div>
+
+          <!-- Admin right panel -->
+          <div id="rightPanel" class="right-panel hidden" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-weight:700;color:#0b1220;">Admin — User Management</div>
+              <button id="closeAdmin" class="list-item">Close</button>
+            </div>
+
+            <div class="muted text-xs">Live Users (profiles)</div>
+            <div id="adminUserList" class="admin-list"></div>
+
+            <div style="margin-top:8px;">
+              <div class="muted text-xs">Pinned messages (channel)</div>
+              <div id="adminPinnedList" style="margin-top:6px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth modal (email + password only) -->
+  <div id="authModal" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(11,17,32,0.06), rgba(11,17,32,0.06));z-index:7000;">
+    <div style="width:420px;background:var(--panel);padding:20px;border-radius:12px;border:1px solid #eef2f6;">
+      <h2 style="color:#0b1220;margin:0 0 8px 0;font-weight:700;">AnonChat Office — Sign In / Register</h2>
+      <div class="muted text-xs" style="margin-bottom:12px;">Sign in with Email + Password. Admin accounts show extra controls.</div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="authEmail" placeholder="Email" style="padding:10px;border-radius:8px;border:1px solid #eef2f6;background:transparent;color:#0b1220;" />
+        <input id="authPass" type="password" placeholder="Password (min 6)" style="padding:10px;border-radius:8px;border:1px solid #eef2f6;background:transparent;color:#0b1220;" />
+        <div style="display:flex;gap:8px;">
+          <button id="signInBtn" class="btn neon-outline" style="flex:1;background:var(--accent);">Sign In</button>
+          <button id="signUpBtn" class="btn neon-outline" style="flex:1;background:linear-gradient(90deg,var(--accent),#60a5fa);">Register</button>
+        </div>
+        <div id="authError" class="muted text-xs" style="color:#ef4444;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emoji modal -->
+  <div id="emojiModal" class="emoji-modal hidden" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="color:#0b1220;font-weight:700;">Emoji Palette</div>
+      <div><button id="closeEmoji" class="list-item">Close</button></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button data-cat="smile" class="list-item">😄 Smileys</button>
+      <button data-cat="people" class="list-item">🧑 People</button>
+      <button data-cat="nature" class="list-item">🌿 Nature</button>
+      <button data-cat="food" class="list-item">🍔 Food</button>
+      <button data-cat="activity" class="list-item">⚽ Activity</button>
+      <button data-cat="travel" class="list-item">✈️ Travel</button>
+      <button data-cat="objects" class="list-item">📦 Objects</button>
+    </div>
+
+    <div id="emojiGrid" class="emoji-grid"></div>
+  </div>
+
+  <script type="module">
+    // Firebase imports (CDN)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, addDoc, serverTimestamp, getDocs, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // -------- CONFIG ----------
+    const firebaseConfig = {
+      apiKey: "AIzaSyA8kIiVqf_ZHOjIWW59JT7DWKMg9-KWVn8",
+      authDomain: "anonchat-office.firebaseapp.com",
+      projectId: "anonchat-office",
+      storageBucket: "anonchat-office.appspot.com",
+      messagingSenderId: "243690294667",
+      appId: "1:243690294667:web:a8780a16761414aaa8b38e",
+      measurementId: "G-X078LYJJ60"
+    };
+
+    // Admin emails
+    const ADMIN_EMAILS = [
+      "ofloverules641@gmail.com",
+      "5m0k3r.706118@gmail.com",
+      "d.alonsoesthub02@gmail.com"
+    ];
+
+    // App constants & state
+    const APP_ID = 'anonchat-office';
+    const CHANNELS = ['Office Chat','Tea Spot','Project Beta','Random Memes'];
+    let app, auth, db;
+    let currentUser = null;
+    let currentChatType = 'channel'; // 'channel' or 'dm'
+    let currentChatId = CHANNELS[0];
+    let unsubscribeMessages = null;
+    let profilesCache = {}; // uid -> profile data
+    let bannedCache = {};   // uid -> true
+    let pinnedCache = {};   // pinned msg ids per channel
+    let dmMetaCache = {};   // dmId -> meta doc (lastSeen fields)
+
+    // DOM refs
+    const $ = id => document.getElementById(id);
+    const loadingOverlay = $('loadingOverlay');
+    const appShell = $('appShell');
+    const authModal = $('authModal');
+    const authEmail = $('authEmail');
+    const authPass = $('authPass');
+    const signInBtn = $('signInBtn');
+    const signUpBtn = $('signUpBtn');
+    const authError = $('authError');
+    const logoutBtn = $('logoutBtn');
+    const codenameDisplay = $('codenameDisplay');
+    const uidDisplay = $('uidDisplay');
+    const adminBadge = $('adminBadge');
+    const channelsList = $('channelsList');
+    const dmsList = $('dmsList');
+    const messagesDiv = $('messages');
+    const messageInput = $('messageInput');
+    const sendBtn = $('sendBtn');
+    const emojiBtn = $('emojiBtn');
+    const emojiModal = $('emojiModal');
+    const emojiGrid = $('emojiGrid');
+    const closeEmoji = $('closeEmoji');
+    const searchInput = $('searchInput');
+    const toasts = $('toasts');
+    const adminLinkWrap = $('adminLinkWrap');
+    const openAdminBtn = $('openAdminBtn');
+    const rightPanel = $('rightPanel');
+    const adminUserList = $('adminUserList');
+    const closeAdmin = $('closeAdmin');
+    const rightPanelEl = $('rightPanel');
+    const pinnedStrip = $('pinnedStrip');
+    const adminPinnedList = $('adminPinnedList');
+    const rulesBtn = $('rulesBtn');
+
+    // Firestore path helpers (keeps same layout)
+    const userDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'users', uid);
+    const profileDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'public_data_profiles', uid);
+    const bannedDocRef = (uid) => doc(db, 'artifacts', APP_ID, 'public_data_bannedUsers', uid);
+    const channelMessagesColRef = (channelId) => collection(db, 'artifacts', APP_ID, 'public_data_channels', channelId, 'messages');
+    const channelPinnedColRef = (channelId) => collection(db, 'artifacts', APP_ID, 'public_data_channels', channelId, 'pinned');
+    const dmMessagesColRef = (dmId) => collection(db, 'artifacts', APP_ID, 'public_data_directMessages', dmId, 'messages');
+    const dmMetaDocRef = (dmId) => doc(db, 'artifacts', APP_ID, 'public_data_directMessages', dmId + '_meta'); // meta doc per DM
+    const allProfilesColRef = () => collection(db, 'artifacts', APP_ID, 'public_data_profiles');
+    const allBannedColRef = () => collection(db, 'artifacts', APP_ID, 'public_data_bannedUsers');
+
+    // ---------- UI helpers ----------
+    function showToast(text, ms=3000){
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.innerText = text;
+      toasts.appendChild(el);
+      setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(-6px)'; setTimeout(()=>el.remove(),300); }, ms);
+    }
+
+    // Email masking utility - hide emails in UI by default
+    function maskEmail(email){
+      if(!email) return 'Hidden';
+      try{
+        const parts = email.split('@');
+        if(parts.length !== 2) return 'Hidden';
+        const name = parts[0];
+        const domain = parts[1];
+        // show first letter then asterisks, keep domain partially visible
+        const first = name.charAt(0);
+        const maskedName = first + '***';
+        const domParts = domain.split('.');
+        const tld = domParts.pop();
+        const domMain = domParts.join('.');
+        const maskedDomain = domMain ? ('*.' + tld) : ('*.' + tld);
+        return maskedName + '@' + maskedDomain;
+      }catch(e){ return 'Hidden'; }
+    }
+
+    // ---------- Theme: force light mode (no dark) ----------
+    function setThemeLight(){
+      document.documentElement.classList.remove('theme-light');
+    }
+    setThemeLight();
+
+    // Emoji data
+    const EMOJI_SET = {
+      smile:['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😍','😘','😗','😚','😋','🤪','🤩'],
+      people:['🧑','👩','👨','👶','👵','👴','🧔','👱','👳','👲','👷','💂','🕵️','👨‍💻','👩‍⚕️'],
+      nature:['🌱','🌲','🌳','🌴','🌵','🌺','🌸','🌼','🌻','🌞','⭐','🌙','⚡','🔥','💧','🌊'],
+      food:['🍏','🍎','🍊','🍌','🍉','🍓','🍕','🍔','🍟','🍣','🍩','🍰'],
+      activity:['⚽','🏀','🏈','🎾','🏐','🎱','🏓','🏸','🏄','🚴'],
+      travel:['🚗','🚕','🚌','✈️','🚀','🚢','🚲'],
+      objects:['⌚','📱','💻','🎧','📷','📦','🔒','💡']
+    };
+
+    function populateEmojiCategory(cat){
+      emojiGrid.innerHTML = '';
+      (EMOJI_SET[cat]||[]).forEach(e=>{
+        const c = document.createElement('div');
+        c.className='emoji-cell';
+        c.innerText = e;
+        c.onclick = ()=>{ messageInput.value += e; messageInput.focus(); };
+        emojiGrid.appendChild(c);
+      });
+    }
+    // default
+    populateEmojiCategory('smile');
+
+    document.querySelectorAll('[data-cat]').forEach(btn=>{
+      btn.addEventListener('click', ()=> populateEmojiCategory(btn.dataset.cat));
+    });
+
+    // ---------- Firebase init ----------
+    async function init(){
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+
+      // UI ready
+      loadingOverlay.style.display = 'none';
+      appShell.style.display = 'flex';
+
+      // auth listener
+      onAuthStateChanged(auth, async (user)=>{
+        currentUser = user;
+        if(!user){
+          authModal.style.display = 'flex';
+          appShell.style.display = 'none';
+          return;
+        }
+        authModal.style.display = 'none';
+        appShell.style.display = 'flex';
+        uidDisplay.innerText = user.uid;
+        adminBadge.innerText = ADMIN_EMAILS.map(e=>e.toLowerCase()).includes((user.email||'').toLowerCase()) ? 'Admin' : 'User';
+        // ensure profile document exists (auto create)
+        await ensureProfile(user.uid, user.email||'');
+        // refresh caches
+        await refreshProfiles();
+        await refreshBanned();
+        await refreshPinned(currentChatId);
+        // show admin link if admin
+        if(ADMIN_EMAILS.map(e=>e.toLowerCase()).includes((user.email||'').toLowerCase())) adminLinkWrap.style.display='block'; else adminLinkWrap.style.display='none';
+        codenameDisplay.innerText = profilesCache[user.uid]?.codeword || 'Anon';
+        openChat(currentChatType, currentChatId);
+        watchBannedRealtime();
+      });
+    }
+
+    // ---------- Auth handlers ----------
+    signInBtn.addEventListener('click', async ()=>{
+      authError.innerText = '';
+      const email = authEmail.value.trim(); const pass = authPass.value;
+      if(!email || !pass){ authError.innerText='Enter email & password'; return; }
+      try{
+        await signInWithEmailAndPassword(auth, email, pass);
+        showToast('Signed in');
+      }catch(e){ console.error(e); authError.innerText = e.message; }
+    });
+
+    signUpBtn.addEventListener('click', async ()=>{
+      authError.innerText = '';
+      const email = authEmail.value.trim(); const pass = authPass.value;
+      if(!email || !pass || pass.length < 6){ authError.innerText='Enter email & password (min 6)'; return; }
+      try{
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        await ensureProfile(cred.user.uid, email);
+        showToast('Account created');
+      }catch(e){ console.error(e); authError.innerText = e.message; }
+    });
+
+    logoutBtn.addEventListener('click', async ()=>{ try{ await signOut(auth); showToast('Signed out'); }catch(e){console.error(e)} });
+
+    // ---------- Profile helpers ----------
+    async function ensureProfile(uid, email=''){
+      try{
+        const ref = profileDocRef(uid);
+        const snap = await getDoc(ref);
+        if(!snap.exists()){
+          const codename = randomCodename();
+          await setDoc(ref, { userId: uid, email: email||'', realUsername:'', codeword: codename, lastActive: serverTimestamp() });
+        } else {
+          // update email if missing
+          const data = snap.data();
+          if(email && data.email !== email) await setDoc(ref, { email }, { merge:true });
+        }
+      }catch(e){ console.error('ensureProfile err', e); }
+    }
+
+    function randomCodename(){
+      const list = ["SilentPanda","DancingKoala","BraveTiger","MysticWolf","GoldenEagle","SwiftFox","CuriousCat","WhimsicalWombat","FlyingFish","JollyJellyfish","MidnightRaven","ElectricEel","WanderingWeasel","CleverCoyote","ZestyZebra"];
+      return list[Math.floor(Math.random()*list.length)];
+    }
+
+    // ---------- Caches ----------
+    async function refreshProfiles(){
+      try{
+        const snap = await getDocs(allProfilesColRef());
+        profilesCache = {};
+        snap.forEach(d=>{ const data = d.data(); if(data && data.userId) profilesCache[data.userId] = data; });
+        renderDMList();
+        renderAdminList();
+      }catch(e){ console.error('refreshProfiles', e); }
+    }
+
+    async function refreshBanned(){
+      try{
+        const snap = await getDocs(allBannedColRef());
+        bannedCache = {};
+        snap.forEach(d=> bannedCache[d.id] = true);
+        renderAdminList();
+      }catch(e){ console.error('refreshBanned', e); }
+    }
+
+    async function refreshPinned(channelId){
+      try{
+        const col = channelPinnedColRef(channelId);
+        const snap = await getDocs(col);
+        pinnedCache[channelId] = {};
+        snap.forEach(d=>{
+          pinnedCache[channelId][d.id] = d.data();
+        });
+        renderPinnedStrip(channelId);
+      }catch(e){ pinnedCache[channelId] = {}; renderPinnedStrip(channelId); }
+    }
+
+    // realtime banned listener
+    function watchBannedRealtime(){
+      try{
+        onSnapshot(allBannedColRef(), snap=>{
+          bannedCache = {};
+          snap.forEach(d=> bannedCache[d.id] = true);
+          renderAdminList();
+        }, e=> console.error('banned watch', e));
+      }catch(e){ console.error(e); }
+    }
+
+    // ---------- UI renderers ----------
+    function renderChannels(){
+      channelsList.innerHTML = '';
+      CHANNELS.forEach(ch=>{
+        const el = document.createElement('div');
+        el.className = 'list-item' + ((currentChatType==='channel' && currentChatId===ch)?' active':'');
+        el.innerText = '# ' + ch;
+        el.onclick = ()=> openChat('channel', ch);
+        channelsList.appendChild(el);
+      });
+    }
+
+    function renderDMList(){
+      dmsList.innerHTML = '';
+      const uids = Object.keys(profilesCache).filter(u=> u !== (currentUser?.uid));
+      if(uids.length === 0){ dmsList.innerHTML = '<div class="muted">No other users yet</div>'; return; }
+      uids.forEach(uid=>{
+        const p = profilesCache[uid];
+        const el = document.createElement('div');
+        el.className = 'list-item';
+        el.innerHTML = `<span style="color:#3b82f6">${p.codeword || 'Anon'}</span> <span class="muted" style="margin-left:6px">${p.realUsername||''}</span>`;
+        el.onclick = ()=> openChat('dm', uid);
+        dmsList.appendChild(el);
+      });
+    }
+
+    function renderAdminList(){
+      adminUserList.innerHTML = '';
+      const uids = Object.keys(profilesCache).sort();
+      uids.forEach(uid=>{
+        const p = profilesCache[uid];
+        const row = document.createElement('div'); row.className='admin-row';
+        const c1 = document.createElement('div'); c1.className='admin-col'; c1.innerText = p.codeword || 'Anon';
+        const c2 = document.createElement('div'); c2.className='admin-col'; c2.innerText = p.realUsername || '';
+        // Hide email by default — show masked value. To reveal full email requires explicit confirm and admin privileges.
+        const c3 = document.createElement('div'); c3.className='admin-col'; c3.innerText = maskEmail(p.email);
+        const c4 = document.createElement('div'); c4.className='admin-col'; c4.innerText = uid;
+        const action = document.createElement('div'); action.style.minWidth='160px';
+        const isBanned = !!bannedCache[uid];
+        const btn = document.createElement('button'); btn.className='btn neon-outline';
+        btn.style.background = isBanned ? 'linear-gradient(90deg,#10b981,#059669)' : 'linear-gradient(90deg,var(--accent),#60a5fa)';
+        btn.innerText = isBanned ? 'Unban' : 'Ban';
+        btn.onclick = async ()=>{
+          if(!currentUser) { showToast('Sign in as admin'); return; }
+          if(!ADMIN_EMAILS.map(e=>e.toLowerCase()).includes((currentUser.email||'').toLowerCase())) { showToast('Not an admin'); return; }
+          try{
+            if(isBanned) await deleteDoc(bannedDocRef(uid));
+            else await setDoc(bannedDocRef(uid), { bannedBy: currentUser.uid, timestamp: serverTimestamp() });
+            showToast(isBanned ? 'Unbanned' : 'Banned');
+            await refreshBanned();
+          }catch(e){ console.error(e); showToast('Action failed'); }
+        };
+
+        // Reveal button (admin-only): reveals full email after confirmation. This prevents accidental leaks.
+        const revealBtn = document.createElement('button'); revealBtn.className='icon-btn'; revealBtn.innerText='👁️'; revealBtn.title = 'Reveal email (admin only)';
+        revealBtn.onclick = (ev)=>{
+          ev.stopPropagation();
+          if(!currentUser){ showToast('Sign in as admin'); return; }
+          if(!ADMIN_EMAILS.map(e=>e.toLowerCase()).includes((currentUser.email||'').toLowerCase())) { showToast('Not an admin'); return; }
+          if(!confirm('Reveal full email for this user? This will display sensitive info. Proceed?')) return;
+          c3.innerText = p.email || 'Hidden';
+        };
+
+        action.appendChild(btn);
+        action.appendChild(revealBtn);
+
+        row.appendChild(c1); row.appendChild(c2); row.appendChild(c3); row.appendChild(c4); row.appendChild(action);
+        adminUserList.appendChild(row);
+      });
+    }
+
+    function renderPinnedStrip(channelId){
+      const pinned = pinnedCache[channelId] || {};
+      if(Object.keys(pinned).length === 0){ pinnedStrip.classList.add('hidden'); pinnedStrip.innerHTML=''; return; }
+      pinnedStrip.classList.remove('hidden');
+      pinnedStrip.innerHTML = '';
+      Object.keys(pinned).forEach(pid=>{
+        const data = pinned[pid];
+        const el = document.createElement('div'); el.className='pinned-item';
+        el.innerText = data.message ? (data.message.length>50?data.message.slice(0,47)+'...':data.message) : '[pinned]';
+        pinnedStrip.appendChild(el);
+      });
+    }
+
+    // ---------- Chat open / listeners ----------
+    async function openChat(type, id){
+      currentChatType = type; currentChatId = id;
+      $('chatTitle').innerText = (type==='channel')?`# ${id}`:`DM — ${profilesCache[id]?.codeword || 'Private'}`;
+      $('chatSubtitle').innerText = (type==='channel')?`Channel: ${id}`:'Private conversation';
+      // unsubscribe previous
+      if(unsubscribeMessages) unsubscribeMessages();
+      messagesDiv.innerHTML = '';
+
+      // refresh pins
+      if(type==='channel') await refreshPinned(id);
+
+      // attach listener
+      let colRef;
+      if(type==='channel') colRef = channelMessagesColRef(id);
+      else colRef = dmMessagesColRef(getDmId(currentUser.uid, id));
+
+      const q = query(colRef);
+      unsubscribeMessages = onSnapshot(q, snap=>{
+        const arr = [];
+        snap.forEach(d=>arr.push({ id:d.id, ...d.data() }));
+        arr.sort((a,b)=>(a.timestamp?.toMillis?.()||0)-(b.timestamp?.toMillis?.()||0));
+        messagesDiv.innerHTML = '';
+        arr.forEach(m=> messagesDiv.appendChild(makeMessageNode(m)));
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        updateAutoClearTimers(type, id, arr);
+      }, err=>{
+        console.error('listen error', err);
+        showToast('No permission to read messages');
+      });
+
+      // if DM, update lastSeen meta
+      if(type==='dm') await updateDmLastSeen(getDmId(currentUser.uid, id), currentUser.uid);
+
+      renderChannels();
+      renderDMList();
+    }
+
+    function getDmId(a,b){ return a < b ? `${a}_${b}` : `${b}_${a}`; }
+
+    function makeMessageNode(msg){
+      const row = document.createElement('div');
+      row.className = 'msg-row ' + ((msg.userId === currentUser?.uid) ? 'msg-right' : 'msg-left');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble ' + ((msg.userId === currentUser?.uid) ? 'me' : 'they');
+
+      // header: codename and controls
+      const header = document.createElement('div');
+      header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
+      const name = document.createElement('div'); name.style.fontWeight='700'; name.style.marginBottom='6px';
+      name.innerText = msg.codeword || profilesCache[msg.userId]?.codeword || 'Anon';
+      header.appendChild(name);
+
+      // controls: pin, delete, time
+      const ctrl = document.createElement('div'); ctrl.style.display='flex'; ctrl.style.gap='6px';
+      // pin button (only in channels)
+      if(currentChatType === 'channel'){
+        const pinBtn = document.createElement('button'); pinBtn.className='icon-btn'; pinBtn.title='Pin message';
+        pinBtn.innerText = '📌';
+        pinBtn.onclick = async (ev)=>{
+          ev.stopPropagation();
+          try{
+            await setDoc(doc(channelPinnedColRef(currentChatId), msg.id), { message: msg.message, pinnedAt: serverTimestamp(), pinnedBy: currentUser.uid });
+            showToast('Pinned');
+            await refreshPinned(currentChatId);
+          }catch(e){ console.error('pin err', e); showToast('Pin failed'); }
+        };
+        ctrl.appendChild(pinBtn);
+      }
+      // delete button: allowed if owner or admin
+      const delBtn = document.createElement('button'); delBtn.className='icon-btn'; delBtn.title='Delete message';
+      delBtn.innerText = '🗑️';
+      delBtn.onclick = async (ev)=>{
+        ev.stopPropagation();
+        if(!(msg.userId === currentUser.uid || ADMIN_EMAILS.map(e=>e.toLowerCase()).includes((currentUser.email||'').toLowerCase()))){
+          showToast('Not allowed to delete this message');
+          return;
+        }
+        if(!confirm('Delete this message for everyone?')) return;
+        try{
+          await deleteDoc(doc((currentChatType==='channel')?channelMessagesColRef(currentChatId):dmMessagesColRef(getDmId(currentUser.uid,currentChatId)), msg.id));
+          showToast('Message deleted');
+        }catch(e){ console.error('delete err', e); showToast('Delete failed'); }
+      };
+      ctrl.appendChild(delBtn);
+
+      header.appendChild(ctrl);
+      bubble.appendChild(header);
+
+      // message content
+      const text = document.createElement('div'); text.style.whiteSpace='pre-wrap'; text.innerText = msg.message || '';
+      bubble.appendChild(text);
+
+      // meta (time and read receipt for DMs)
+      const meta = document.createElement('div'); meta.className='meta'; meta.style.display='flex'; meta.style.justifyContent='space-between';
+      let t = '';
+      try{ t = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString() : '...'; }catch(e){}
+      const leftMeta = document.createElement('div'); leftMeta.innerText = t;
+      meta.appendChild(leftMeta);
+      if(currentChatType === 'dm'){
+        const seenSpan = document.createElement('div');
+        // check dm meta cache
+        const dmId = getDmId(currentUser.uid, currentChatId);
+        const metaDoc = dmMetaCache[dmId];
+        if(metaDoc && metaDoc[msg.userId] && msg.timestamp && metaDoc[msg.userId].toMillis && msg.timestamp.toMillis && metaDoc[msg.userId].toMillis() >= msg.timestamp.toMillis()){
+          // message has been seen by recipient
+          seenSpan.innerText = (msg.userId === currentUser.uid) ? '✓ Seen' : '';
+        } else {
+          seenSpan.innerText = '';
+        }
+        meta.appendChild(seenSpan);
+      }
+      bubble.appendChild(meta);
+
+      const container = document.createElement('div');
+      container.className = 'msg-row ' + ((msg.userId === currentUser?.uid) ? 'msg-right' : 'msg-left');
+      container.appendChild(bubble);
+      return container;
+    }
+
+    // ---------- Send message ----------
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') sendMessage(); });
+
+    async function sendMessage(){
+      const txt = (messageInput.value||'').trim();
+      if(!txt) return;
+      if(!currentUser){ showToast('Sign in to send'); return; }
+      if(bannedCache[currentUser.uid]) { showToast('You are banned'); return; }
+      try{
+        const payload = { userId: currentUser.uid, codeword: profilesCache[currentUser.uid]?.codeword || 'Anon', message: txt, timestamp: serverTimestamp() };
+        if(currentChatType === 'channel'){
+          await addDoc(channelMessagesColRef(currentChatId), payload);
+          // UI-clear timer reset handled in onSnapshot update
+        } else {
+          const dmId = getDmId(currentUser.uid, currentChatId);
+          await addDoc(dmMessagesColRef(dmId), payload);
+          // update dm meta lastSeen for sender
+          await setDoc(dmMetaDocRef(dmId), { [currentUser.uid]: serverTimestamp() }, { merge:true });
+        }
+        messageInput.value = '';
+        showToast('Message sent');
+      }catch(e){ console.error('send err', e); showToast('Send failed'); }
+    }
+
+    // ---------- Delete message (already implemented in makeMessageNode) ----------
+
+    // ---------- Pinning handled earlier; render pinned strip ----------
+    // renderPinnedStrip implemented using pinnedCache
+
+    // ---------- DM meta (read receipts) ----------
+    async function updateDmLastSeen(dmId, uid){
+      try{
+        await setDoc(dmMetaDocRef(dmId), { [uid]: serverTimestamp() }, { merge:true });
+      }catch(e){ console.error('dm lastSeen err', e); }
+    }
+
+    // Listen to dm meta changes
+    function watchDmMeta(dmId){
+      try{
+        const docRef = dmMetaDocRef(dmId);
+        onSnapshot(docRef, snap=>{
+          dmMetaCache[dmId] = snap.exists() ? snap.data() : {};
+          // re-render messages for seen updates (cheap approach)
+          if(currentChatType === 'dm' && getDmId(currentUser.uid, currentChatId) === dmId) openChat(currentChatType, currentChatId);
+        }, err=> console.error('dm meta watch', err));
+      }catch(e){ console.error(e); }
+    }
+
+    // ---------- Search ----------
+    searchInput.addEventListener('input', ()=>{
+      const q = searchInput.value.trim().toLowerCase();
+      const nodes = messagesDiv.querySelectorAll('.bubble');
+      nodes.forEach(n=>{
+        const text = n.innerText.toLowerCase();
+        if(!q) n.parentElement.style.display='flex';
+        else n.parentElement.style.display = text.includes(q) ? 'flex' : 'none';
+      });
+    });
+
+    // ---------- Auto-clear UI timers ----------
+    const autoClearTimers = {}; // key -> timeout id
+    function updateAutoClearTimers(type, id, messagesArray){
+      // compute last message timestamp
+      const lastTs = messagesArray.length ? (messagesArray[messagesArray.length-1].timestamp?.toMillis?.()||0) : 0;
+      const key = (type==='channel' ? 'channel_' + id : 'dm_' + id);
+      if(autoClearTimers[key]) clearTimeout(autoClearTimers[key]);
+
+      // define durations (ms)
+      const duration = (type==='channel') ? (10 * 60 * 1000) : (60 * 60 * 1000);
+      const now = Date.now();
+      const timeSince = lastTs ? (now - lastTs) : duration + 1;
+
+      if(timeSince >= duration){
+        // clear immediately from UI
+        messagesDiv.innerHTML = '';
+        showToast((type==='channel') ? 'Channel cleared from view (idle)' : 'DM cleared from view (idle)');
+      } else {
+        // schedule clear after remaining time
+        autoClearTimers[key] = setTimeout(()=>{
+          messagesDiv.innerHTML = '';
+          showToast((type==='channel') ? 'Channel cleared from view (idle)' : 'DM cleared from view (idle)');
+        }, duration - timeSince);
+      }
+    }
+
+    // To use setDoc/deleteDoc/addDoc we use direct firestore functions above (we already have doc/collection from firebase imports)
+    // But we need doc() from firebase - already imported as function in scope. So the earlier doc wrapper is unnecessary; ignore.
+
+    // ---------- Admin controls UI wiring ----------
+    openAdminBtn.addEventListener('click', ()=>{ rightPanel.style.display='block'; rightPanelEl.style.display='block'; refreshPinnedListUI(currentChatId); });
+    closeAdmin.addEventListener('click', ()=>{ rightPanel.style.display='none'; rightPanelEl.style.display='none'; });
+
+    function refreshPinnedListUI(channelId){
+      adminPinnedList.innerHTML = '';
+      const pinned = pinnedCache[channelId] || {};
+      Object.keys(pinned).forEach(pid=>{
+        const p = pinned[pid];
+        const el = document.createElement('div'); el.className='admin-row';
+        el.innerHTML = `<div style="flex:1;color:#3b82f6">${(p.message||'').slice(0,80)}</div>`;
+        const delbtn = document.createElement('button'); delbtn.className='btn'; delbtn.innerText='Remove pin';
+        delbtn.onclick = async ()=>{ try{ await deleteDoc(doc(channelPinnedColRef(channelId), pid)); showToast('Pin removed'); await refreshPinned(channelId); }catch(e){console.error(e); showToast('Failed');} };
+        el.appendChild(delbtn);
+        adminPinnedList.appendChild(el);
+      });
+    }
+
+    // ---------- Utility: small wrapper to get firebase doc function references (we already have doc imported) ----------
+    // (no-op; doc is available)
+
+    // ---------- render pinned on load ----------
+    // (done by refreshPinned in openChat)
+
+    // ---------- message deletion (users and admins) implemented earlier in makeMessageNode ----------
+
+    // ---------- lifecycle: initial render ----------
+    renderChannels();
+    populateEmojiCategory('smile');
+
+    // button wiring
+    emojiBtn.addEventListener('click', ()=>{ emojiModal.style.display='block'; emojiModal.classList.remove('hidden'); });
+    closeEmoji.addEventListener('click', ()=>{ emojiModal.style.display='none'; emojiModal.classList.add('hidden'); });
+
+    // categories in emoji modal (event delegation)
+    document.querySelectorAll('[data-cat]').forEach(b=> b.addEventListener('click', ()=>populateEmojiCategory(b.dataset.cat)));
+
+    // send with emoji button? emoji adds to input, send uses Enter or Send button
+
+    // open rules
+    rulesBtn.addEventListener('click', ()=>{
+      // render rules into messages viewport
+      messagesDiv.innerHTML = '';
+      const rules = [
+        "1. Professional Conduct: Always be respectful.",
+        "2. Confidentiality: Keep sensitive info private.",
+        "3. No Spam: Avoid flooding channels.",
+        "4. Respectful Banter: No harassment.",
+        "5. Use proper channels for urgent matters.",
+      ];
+      rules.forEach(r=>{
+        const el = document.createElement('div'); el.style.padding='12px'; el.style.borderRadius='8px'; el.style.background='#f8fafc'; el.style.marginBottom='8px';
+        el.innerHTML = `<strong style="color:var(--accent)">${r}</strong>`;
+        messagesDiv.appendChild(el);
+      });
+    });
+
+    // ---------- Helpers to handle dm meta watch ----------
+    function setupDmMetaWatcher(dmId){
+      try{
+        const ref = dmMetaDocRef(dmId);
+        onSnapshot(ref, snap=>{
+          dmMetaCache[dmId] = snap.exists() ? snap.data() : {};
+          // re-render messages to reflect seen indicators
+          if(currentChatType==='dm' && getDmId(currentUser.uid, currentChatId) === dmId) openChat('dm', currentChatId);
+        }, e=> console.error('dm meta watch', e));
+      }catch(e){ console.error(e); }
+    }
+
+    // ---------- refresh pinned & watch pinned realtime for channel ----------
+    function watchPinnedRealtime(channelId){
+      try{
+        const col = channelPinnedColRef(channelId);
+        onSnapshot(col, snap=>{
+          pinnedCache[channelId] = {};
+          snap.forEach(d=> pinnedCache[channelId][d.id] = d.data());
+          renderPinnedStrip(channelId);
+        }, e=> console.error('pinned watch err', e));
+      }catch(e){ console.error(e); }
+    }
+
+    // ---------- initial firebase start ----------
+    init().catch(console.error);
+
+    // ---------- small polyfill for confirm() in GitHub Pages mobile quirks handled by browser ----------
+  </script>
+</body>
+</html>
