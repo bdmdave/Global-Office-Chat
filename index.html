@@ -63,6 +63,11 @@
 </head>
 <body>
 
+    <!-- Message Box Container (Replaces alert()) -->
+    <div id="message-box-container" class="fixed top-0 inset-x-0 p-4 z-50 pointer-events-none">
+        <!-- Messages will be injected here -->
+    </div>
+
     <div id="loading-screen" class="fixed inset-0 flex items-center justify-center bg-white z-50">
         <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-500"></div>
         <p class="ml-4 text-gray-600">Initializing Secure Connection...</p>
@@ -183,7 +188,7 @@
                 <div id="admin-portal-screen" class="flex-grow flex flex-col p-6 space-y-4" style="display: none;">
                     <h2 class="text-3xl font-bold text-red-700 border-b pb-2">Admin Portal - User Management</h2>
                     <div class="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800 border border-yellow-200">
-                        <p><strong>IMPORTANT:</strong> Use this portal responsibly to enforce community guidelines.</p>
+                        <p><strong>IMPORTANT:</strong> Administrative actions are client-side only. Real security requires server-side Firebase Rules.</p>
                     </div>
                     <div class="overflow-x-auto flex-grow rounded-lg border border-gray-300">
                         <div id="admin-user-list" class="divide-y divide-gray-200 bg-white min-w-[700px]">
@@ -209,21 +214,21 @@
 
                 <!-- Footer with Developer Signature -->
                 <div class="text-center text-xs text-gray-500 p-1 border-t border-gray-200 bg-white/80 rounded-br-xl">
-                    Developed by Dave
+                    Developed by Dave | v1.0.0
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Firebase SDKs -->
-    <script type="module">
+    <script type="module" defer>
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, serverTimestamp, getDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- GLOBAL SETUP AND CONSTANTS ---
 
-        // List of authorized Admin Emails
+        // List of authorized Admin Emails (Security Risk: This list is visible client-side)
         const ADMIN_EMAILS = [
             'ofloverules641@gmail.com', 
             '5m0k3r.706118@gmail.com', 
@@ -231,9 +236,7 @@
             'd.alonsoesthub02@gmail.com'
         ];
         
-        const ADMIN_SECRET_CODE = 'itsdaveproject';
-        
-        // Configuration loading logic
+        // Configuration loading logic (Fix 2a)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-anonchat-app-id';
         const firebaseConfigRaw = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
         const firebaseConfig = JSON.parse(firebaseConfigRaw);
@@ -290,7 +293,8 @@
             currentChatTitle: document.getElementById('current-chat-title'),
             adminLinkContainer: document.getElementById('admin-link-container'),
             adminUserList: document.getElementById('admin-user-list'),
-            banNotification: document.getElementById('ban-notification')
+            banNotification: document.getElementById('ban-notification'),
+            messageBoxContainer: document.getElementById('message-box-container')
         };
 
         // --- UTILITY FUNCTIONS ---
@@ -322,18 +326,52 @@
         function getDmId(uid1, uid2) {
             return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
         }
+        
+        // Custom message box utility (Fix 2a - replaces alert()/confirm())
+        function showMessageBox(message, type = 'info', duration = 4000) {
+            const box = document.createElement('div');
+            const baseClasses = 'p-3 my-2 rounded-lg shadow-xl text-sm transition-all duration-300 transform pointer-events-auto';
+            
+            let colorClasses = '';
+            if (type === 'error') {
+                colorClasses = 'bg-red-600 text-white';
+            } else if (type === 'success') {
+                colorClasses = 'bg-green-500 text-white';
+            } else {
+                colorClasses = 'bg-blue-500 text-white';
+            }
+
+            box.className = `${baseClasses} ${colorClasses} opacity-0 translate-y-[-20px]`;
+            box.innerText = message;
+
+            elements.messageBoxContainer.appendChild(box);
+
+            // Animate in
+            setTimeout(() => {
+                box.classList.remove('opacity-0', 'translate-y-[-20px]');
+                box.classList.add('opacity-100', 'translate-y-0');
+            }, 10); 
+
+            // Animate out and remove
+            setTimeout(() => {
+                box.classList.remove('opacity-100', 'translate-y-0');
+                box.classList.add('opacity-0', 'translate-y-[-20px]');
+                setTimeout(() => box.remove(), 500);
+            }, duration);
+        }
 
         // --- FIREBASE INITIALIZATION AND AUTH ---
 
         async function initializeFirebase() {
             try {
-                // Check if firebaseConfig is empty after parsing
-                if (Object.keys(firebaseConfig).length === 0) {
-                     console.error("Firebase config is empty. Cannot initialize.");
+                // Check for valid configuration (Fix 2a)
+                if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
+                     console.error("CRITICAL: Firebase config is empty or invalid.");
                      elements.loadingScreen.innerHTML = `
                          <p class="text-red-600 font-bold mb-2">Configuration Error: Firebase config not found.</p>
-                         <p class="text-gray-600 text-sm">Please refresh the page to ensure the environment variables load correctly.</p>
+                         <p class="text-gray-600 text-sm">Please ensure the environment variables are loaded correctly.</p>
                      `;
+                     showMessageBox("Missing Firebase configuration. Please reload or check environment setup.", 'error');
                      return;
                 }
                 
@@ -365,16 +403,16 @@
 
         // --- USER PROFILE AND CODENAME MANAGEMENT ---
 
+        // Fixed Collection Paths (Fix 2b)
         const getProfileDocRef = (uid) => doc(db, 'artifacts', appId, 'users', uid, 'profiles', uid);
-        const getAllProfilesCollectionRef = () => collection(db, 'artifacts', appId, 'public/data/profiles');
-        const getBannedUsersCollectionRef = () => collection(db, 'artifacts', appId, 'public/data/bannedUsers');
+        const getAllProfilesCollectionRef = () => collection(db, 'artifacts', appId, 'public_data_profiles');
+        const getBannedUsersCollectionRef = () => collection(db, 'artifacts', appId, 'public_data_bannedUsers');
         
         async function getOrCreateProfile(uid, providedEmail = null, providedUsername = null) {
             const profileRef = getProfileDocRef(uid);
             const profileSnap = await getDoc(profileRef);
             
             let profileData = {};
-            let isNewUser = false;
 
             if (profileSnap.exists()) {
                 profileData = profileSnap.data();
@@ -382,7 +420,6 @@
                 if (providedEmail) profileData.email = providedEmail;
                 if (providedUsername) profileData.realUsername = providedUsername;
             } else {
-                isNewUser = true;
                 const randomIndex = Math.floor(Math.random() * RANDOM_CODENAMES.length);
                 const codeword = RANDOM_CODENAMES[randomIndex];
                 
@@ -399,7 +436,7 @@
             await setDoc(profileRef, profileData, { merge: true });
 
             // Update/Store for public display (Crucial for admin/DM list)
-            await setDoc(doc(db, 'artifacts', appId, 'public/data/profiles', uid), {
+            await setDoc(doc(db, 'artifacts', appId, 'public_data_profiles', uid), {
                 userId: uid,
                 codeword: profileData.codeword,
                 email: profileData.email,
@@ -435,6 +472,8 @@
 
         function setupBanListener() {
             const bannedRef = getBannedUsersCollectionRef();
+            // Note: This collection path is fixed: 'artifacts/{appId}/public_data_bannedUsers/{userId}' (Fix 2b)
+            // Real-world security requires Firebase Security Rules to restrict WRITE access here (Fix 3b)
             onSnapshot(bannedRef, (snapshot) => {
                 bannedUsersCache = {};
                 snapshot.forEach(doc => {
@@ -465,29 +504,27 @@
         }
 
         window.toggleBanUser = async (targetUid, currentStatus) => {
-            if (!isAdmin || targetUid === userId) return; 
+            if (!isAdmin || targetUid === userId) {
+                 showMessageBox("Admin access required, or cannot ban self.", 'error');
+                 return;
+            }
 
             try {
                 if (currentStatus === 'BANNED') {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public/data/bannedUsers', targetUid));
-                    console.log(`User ${targetUid} unbanned.`);
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public_data_bannedUsers', targetUid));
+                    showMessageBox(`User ${codenameCache[targetUid].codeword} unbanned.`, 'success');
                 } else {
-                    await setDoc(doc(db, 'artifacts', appId, 'public/data/bannedUsers', targetUid), {
+                    await setDoc(doc(db, 'artifacts', appId, 'public_data_bannedUsers', targetUid), {
                         bannedBy: userId,
                         bannedByName: userProfile.realUsername,
                         timestamp: serverTimestamp(),
-                        reason: "Violated Community Guidelines (Permanent Ban until unbanned)"
+                        reason: "Violated Community Guidelines"
                     });
-                    console.log(`User ${targetUid} banned.`);
+                    showMessageBox(`User ${codenameCache[targetUid].codeword} banned.`, 'success');
                 }
             } catch (error) {
                 console.error(`Error toggling ban status for ${targetUid}:`, error);
-                // Use a simple message box replacement
-                const message = document.createElement('div');
-                message.className = 'fixed top-5 right-5 p-3 bg-red-500 text-white rounded-lg shadow-xl';
-                message.innerText = `Failed to change ban status: ${error.message}`;
-                document.body.appendChild(message);
-                setTimeout(() => document.body.removeChild(message), 3000);
+                showMessageBox(`Failed to change ban status: ${error.message}`, 'error');
             }
         };
 
@@ -591,31 +628,11 @@
         window.switchView = (view, title) => {
             currentView = view;
             
-            // 1. Admin Security Check
-            if (view === 'admin' && isAdmin) {
-                const enteredCode = prompt("Enter the Admin Security Code to proceed:");
-                if (enteredCode !== ADMIN_SECRET_CODE) {
-                    // Simple message box instead of alert
-                    const message = document.createElement('div');
-                    message.className = 'fixed top-5 right-5 p-3 bg-red-500 text-white rounded-lg shadow-xl';
-                    message.innerText = `Incorrect Security Code. Access denied.`;
-                    document.body.appendChild(message);
-                    setTimeout(() => document.body.removeChild(message), 3000);
-
-                    view = 'chat'; // Fallback to chat view
-                    title = elements.currentChatTitle.innerText; // Keep current title
-                    currentView = 'chat';
-                }
-            } else if (view === 'admin' && !isAdmin) {
-                // Simple message box instead of alert
-                const message = document.createElement('div');
-                message.className = 'fixed top-5 right-5 p-3 bg-red-500 text-white rounded-lg shadow-xl';
-                message.innerText = `You are not an authorized Admin. Access denied.`;
-                document.body.appendChild(message);
-                setTimeout(() => document.body.removeChild(message), 3000);
-
-                view = 'chat';
-                title = elements.currentChatTitle.innerText;
+            // 1. Admin Security Check (Fix 3a: Removed client-side secret code check)
+            if (view === 'admin' && !isAdmin) {
+                showMessageBox("You are not an authorized Admin. Access denied.", 'error');
+                view = 'chat'; // Fallback to chat view
+                title = elements.currentChatTitle.innerText; // Keep current title
                 currentView = 'chat';
             }
             
@@ -660,6 +677,7 @@
             
             if (checkIfBanned()) {
                 console.warn("Attempt blocked: User is banned.");
+                showMessageBox("Message failed: You are banned from sending messages.", 'error', 5000);
                 return; 
             }
 
@@ -671,12 +689,14 @@
 
             if (currentChatType === 'channel') {
                 targetId = currentChatId;
-                collectionRef = collection(db, 'artifacts', appId, 'public/data/channels', targetId, 'messages');
+                // Fix 2b: Use public_data_channels
+                collectionRef = collection(db, 'artifacts', appId, 'public_data_channels', targetId, 'messages');
 
             } else if (currentChatType === 'dm') {
                 const dmId = getDmId(userId, currentChatId);
                 targetId = currentChatId; 
-                collectionRef = collection(db, 'artifacts', appId, 'public/data/directMessages', dmId, 'messages');
+                // Fix 2b: Use public_data_directMessages
+                collectionRef = collection(db, 'artifacts', appId, 'public_data_directMessages', dmId, 'messages');
             } else {
                  console.error("No chat selected.");
                  return;
@@ -702,36 +722,64 @@
             }
 
             if (currentChatType === 'channel') {
-                chatCollectionRef = collection(db, 'artifacts', appId, 'public/data/channels', currentChatId, 'messages');
+                chatCollectionRef = collection(db, 'artifacts', appId, 'public_data_channels', currentChatId, 'messages');
             } else if (currentChatType === 'dm') {
                 const dmId = getDmId(userId, currentChatId);
-                chatCollectionRef = collection(db, 'artifacts', appId, 'public/data/directMessages', dmId, 'messages');
+                chatCollectionRef = collection(db, 'artifacts', appId, 'public_data_directMessages', dmId, 'messages');
             } else {
                 elements.messages.innerHTML = '<p class="text-center text-gray-400 mt-10">Select a group or a user from the left to start chatting anonymously.</p>';
                 return;
             }
             
             const q = query(chatCollectionRef); 
+            
+            // Clear message display when switching chats (prevents mixing)
+            elements.messages.innerHTML = ''; 
+            let isInitialLoad = true;
 
+            // Optimized onSnapshot listener (Fix 3c)
             unsubscribeListener = onSnapshot(q, (snapshot) => {
-                let messagesArray = [];
-                snapshot.forEach(doc => {
-                    messagesArray.push({ id: doc.id, ...doc.data() });
-                });
-
-                messagesArray.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
                 
-                elements.messages.innerHTML = ''; 
-                const fragment = document.createDocumentFragment();
+                if (isInitialLoad) {
+                    // Initial load: render all messages, sorted locally
+                    let messagesArray = [];
+                    snapshot.docs.forEach(doc => {
+                        messagesArray.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    messagesArray.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+                    
+                    const fragment = document.createDocumentFragment();
+                    messagesArray.forEach(msg => {
+                        fragment.appendChild(createMessageElement(msg, msg.userId === userId));
+                    });
+                    
+                    elements.messages.appendChild(fragment);
+                    elements.messages.scrollTop = elements.messages.scrollHeight;
+                    isInitialLoad = false;
+                    
+                } else {
+                    // Subsequent updates: only process changes
+                    snapshot.docChanges().forEach(change => {
+                        if (change.type === 'added') {
+                            const msg = { id: change.doc.id, ...change.doc.data() };
+                            const isCurrentUser = msg.userId === userId;
+                            
+                            const messageEl = createMessageElement(msg, isCurrentUser);
+                            elements.messages.appendChild(messageEl);
+                            
+                            // Scroll to bottom when a new message is added
+                            elements.messages.scrollTop = elements.messages.scrollHeight;
+                        } 
+                        // For chat simplicity, we ignore 'modified' and 'removed' changes
+                    });
+                }
+                
+                // If no messages at all (e.g., brand new chat), show the placeholder
+                if (elements.messages.children.length === 0) {
+                     elements.messages.innerHTML = '<p class="text-center text-gray-400 mt-10">Select a group or a user from the left to start chatting anonymously.</p>';
+                }
 
-                messagesArray.forEach(msg => {
-                    const isCurrentUser = msg.userId === userId;
-                    const messageEl = createMessageElement(msg, isCurrentUser);
-                    fragment.appendChild(messageEl);
-                });
-
-                elements.messages.appendChild(fragment);
-                elements.messages.scrollTop = elements.messages.scrollHeight;
             }, (error) => {
                 console.error(`Error listening to ${currentChatType}/${currentChatId}:`, error);
             });
